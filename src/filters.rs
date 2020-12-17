@@ -3,6 +3,8 @@ use super::empty_tree_id;
 use super::scratch;
 use pest::Parser;
 use std::path::Path;
+use rayon::prelude::*;
+
 
 fn select_parent_commits<'a>(
     original_commit: &'a git2::Commit,
@@ -175,7 +177,9 @@ impl Filter for NopFilter {
 
 struct DirsFilter {
     cache: std::cell::RefCell<
-        std::collections::HashMap<(git2::Oid, String), git2::Oid>,
+        std::sync::Mutex<
+            std::collections::HashMap<(git2::Oid, String), git2::Oid>,
+        >,
     >,
 }
 
@@ -183,55 +187,65 @@ fn dirtree<'a>(
     repo: &'a git2::Repository,
     root: &str,
     input: git2::Oid,
-    cache: &mut std::collections::HashMap<(git2::Oid, String), git2::Oid>,
+    cache: &mut std::sync::Mutex<
+        std::collections::HashMap<(git2::Oid, String), git2::Oid>,
+    >,
 ) -> super::JoshResult<git2::Tree<'a>> {
-    if let Some(cached) = cache.get(&(input, root.to_string())) {
+    if let Some(cached) = cache.lock()?.get(&(input, root.to_string())) {
         return Ok(repo.find_tree(*cached)?);
     }
 
     let tree = repo.find_tree(input)?;
+    let repo_path = repo.path();
+
+    let entries = tree
+        .iter().map(|entry| (entry.kind(), entry.name().unwrap_or("NO NAME").to_string(), entry.id()) ).collect::<Vec<_>>().iter()
+        .map(|(kind, name, id)| -> super::JoshResult<_> {
+
+            if *kind == Some(git2::ObjectType::Blob) {
+                if name == "workspace.josh" {
+                    return Ok(Some((
+                        *id,
+                        Path::new(
+                            name
+                        )
+                        .to_owned(),
+                    )));
+                }
+            }
+
+            if *kind == Some(git2::ObjectType::Tree) {
+                let s = dirtree(
+                    &git2::Repository::init_bare(&repo_path)?,
+                    &format!(
+                        "{}{}{}",
+                        root,
+                        if root == "" { "" } else { "/" },
+                        name
+                    ),
+                    *id,
+                    &mut std::sync::Mutex::new(std::collections::HashMap::new())
+                )?
+                .id();
+
+                if s != empty_tree_id() {
+                    return Ok(Some((
+                        s,
+                        Path::new(
+                            name
+                        )
+                        .to_owned(),
+                    )));
+                }
+            }
+            Ok(None)
+        })
+        .collect::<Vec<_>>();
+
     let mut result = empty_tree(&repo);
-
-    for entry in tree.iter() {
-        let name = entry.name().ok_or(super::josh_error("INVALID_FILENAME"))?;
-
-        if entry.kind() == Some(git2::ObjectType::Blob) {
-            if name == "workspace.josh" {
-                result = replace_child(
-                    &repo,
-                    &Path::new(
-                        entry.name().ok_or(super::josh_error("no name"))?,
-                    ),
-                    entry.id(),
-                    &result,
-                )?;
-            }
-        }
-
-        if entry.kind() == Some(git2::ObjectType::Tree) {
-            let s = dirtree(
-                &repo,
-                &format!(
-                    "{}{}{}",
-                    root,
-                    if root == "" { "" } else { "/" },
-                    entry.name().ok_or(super::josh_error("no name"))?
-                ),
-                entry.id(),
-                cache,
-            )?
-            .id();
-
-            if s != empty_tree_id() {
-                result = replace_child(
-                    &repo,
-                    &Path::new(
-                        entry.name().ok_or(super::josh_error("no name"))?,
-                    ),
-                    s,
-                    &result,
-                )?;
-            }
+    for x in entries {
+        if let Some((e, p)) = x? {
+            result = replace_child(&repo, &p, e, &result)?;
         }
     }
 
@@ -245,7 +259,7 @@ fn dirtree<'a>(
             &result,
         )?;
     }
-    cache.insert((input, root.to_string()), result.id());
+    cache.lock()?.insert((input, root.to_string()), result.id());
     return Ok(result);
 }
 
@@ -1001,7 +1015,7 @@ fn make_filter(args: &[&str]) -> super::JoshResult<Box<dyn Filter>> {
         })),
         ["SQUASH"] => Ok(Box::new(SquashFilter)),
         ["DIRS"] => Ok(Box::new(DirsFilter {
-            cache: std::cell::RefCell::new(std::collections::HashMap::new()),
+            cache: std::cell::RefCell::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         })),
         ["FOLD"] => Ok(Box::new(FoldFilter)),
         _ => Err(super::josh_error("invalid filter")),
