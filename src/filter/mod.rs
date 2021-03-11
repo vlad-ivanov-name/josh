@@ -352,6 +352,7 @@ fn apply_to_commit2(
             .transpose();
         }
         Op::Fold => {
+            rs_tracing::trace_scoped!("fold");
             let filtered_parent_ids = commit
                 .parents()
                 .map(|x| transaction.get(filter, x.id()))

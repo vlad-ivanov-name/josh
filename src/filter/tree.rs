@@ -236,6 +236,7 @@ pub fn overlay(
 ) -> super::JoshResult<git2::Oid> {
     rs_tracing::trace_scoped!("overlay");
     if input1 == input2 {
+        rs_tracing::trace_scoped!("equal");
         return Ok(input1);
     }
     if input1 == tree::empty_id() {
@@ -248,12 +249,14 @@ pub fn overlay(
     if let (Ok(tree1), Ok(tree2)) =
         (repo.find_tree(input1), repo.find_tree(input2))
     {
+        rs_tracing::trace_scoped!("diff");
         let mut result_tree = tree1.clone();
 
         for entry in tree2.iter() {
             if let Some(e) = tree1
                 .get_name(entry.name().ok_or(super::josh_error("no name"))?)
             {
+                rs_tracing::trace_scoped!("entry", "name": entry.name().ok_or(super::josh_error("no name"))?);
                 result_tree = replace_child(
                     &repo,
                     &std::path::Path::new(
@@ -264,6 +267,7 @@ pub fn overlay(
                     &result_tree,
                 )?;
             } else {
+                rs_tracing::trace_scoped!("no entry");
                 result_tree = replace_child(
                     &repo,
                     &std::path::Path::new(
