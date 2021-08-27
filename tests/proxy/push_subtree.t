@@ -25,7 +25,7 @@
   remote: josh-proxy
   remote: response from upstream:
   remote: Branch "refs/heads/new_branch" does not exist on remote.
-  remote: If you want to create it, pass "-o base=<branchname>"
+  remote: If you want to create it, pass "-o base=refs/heads/<branchname>"
   remote: to specify a base branch.
   remote:
   remote:
