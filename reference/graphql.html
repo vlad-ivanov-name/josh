@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Command line tools - Just One Single History</title>
+        <title>Graphql API - Just One Single History</title>
                 
 
         <!-- Custom HTML head -->
@@ -82,7 +82,7 @@
 
         <nav id="sidebar" class="sidebar" aria-label="Table of contents">
             <div class="sidebar-scrollbox">
-                <ol class="chapter"><li class="chapter-item expanded "><a href="../intro.html"><strong aria-hidden="true">1.</strong> Intro</a></li><li class="chapter-item expanded "><a href="../usecases.html"><strong aria-hidden="true">2.</strong> Use cases</a></li><li class="chapter-item expanded "><a href="../faq.html"><strong aria-hidden="true">3.</strong> FAQ</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/gettingstarted.html"><strong aria-hidden="true">4.</strong> Getting started</a></li><li class="chapter-item expanded "><a href="../guide/workspaces.html"><strong aria-hidden="true">5.</strong> Working with workspaces</a></li><li class="chapter-item expanded "><a href="../guide/importing.html"><strong aria-hidden="true">6.</strong> Importing projects</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Integrating with CI</div></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="../reference/filters.html"><strong aria-hidden="true">8.</strong> Filter syntax</a></li><li class="chapter-item expanded "><a href="../reference/proxy.html"><strong aria-hidden="true">9.</strong> Proxy</a></li><li class="chapter-item expanded "><a href="../reference/workspace.html"><strong aria-hidden="true">10.</strong> Workspaces</a></li><li class="chapter-item expanded "><a href="../reference/cli.html" class="active"><strong aria-hidden="true">11.</strong> Command line tools</a></li><li class="chapter-item expanded "><a href="../reference/graphql.html"><strong aria-hidden="true">12.</strong> Graphql API</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">13.</strong> Handlebar generator</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">14.</strong> The josh UI</div></li><li class="chapter-item expanded affix "><li class="part-title">Contributing</li><li class="chapter-item expanded "><a href="../contributing/testing.html"><strong aria-hidden="true">15.</strong> Testing</a></li><li class="chapter-item expanded "><a href="../contributing/dev-tools.html"><strong aria-hidden="true">16.</strong> Development tools</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">17.</strong> Tracing</div></li></ol>            </div>
+                <ol class="chapter"><li class="chapter-item expanded "><a href="../intro.html"><strong aria-hidden="true">1.</strong> Intro</a></li><li class="chapter-item expanded "><a href="../usecases.html"><strong aria-hidden="true">2.</strong> Use cases</a></li><li class="chapter-item expanded "><a href="../faq.html"><strong aria-hidden="true">3.</strong> FAQ</a></li><li class="chapter-item expanded affix "><li class="part-title">Guide</li><li class="chapter-item expanded "><a href="../guide/gettingstarted.html"><strong aria-hidden="true">4.</strong> Getting started</a></li><li class="chapter-item expanded "><a href="../guide/workspaces.html"><strong aria-hidden="true">5.</strong> Working with workspaces</a></li><li class="chapter-item expanded "><a href="../guide/importing.html"><strong aria-hidden="true">6.</strong> Importing projects</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">7.</strong> Integrating with CI</div></li><li class="chapter-item expanded affix "><li class="part-title">Reference</li><li class="chapter-item expanded "><a href="../reference/filters.html"><strong aria-hidden="true">8.</strong> Filter syntax</a></li><li class="chapter-item expanded "><a href="../reference/proxy.html"><strong aria-hidden="true">9.</strong> Proxy</a></li><li class="chapter-item expanded "><a href="../reference/workspace.html"><strong aria-hidden="true">10.</strong> Workspaces</a></li><li class="chapter-item expanded "><a href="../reference/cli.html"><strong aria-hidden="true">11.</strong> Command line tools</a></li><li class="chapter-item expanded "><a href="../reference/graphql.html" class="active"><strong aria-hidden="true">12.</strong> Graphql API</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">13.</strong> Handlebar generator</div></li><li class="chapter-item expanded "><div><strong aria-hidden="true">14.</strong> The josh UI</div></li><li class="chapter-item expanded affix "><li class="part-title">Contributing</li><li class="chapter-item expanded "><a href="../contributing/testing.html"><strong aria-hidden="true">15.</strong> Testing</a></li><li class="chapter-item expanded "><a href="../contributing/dev-tools.html"><strong aria-hidden="true">16.</strong> Development tools</a></li><li class="chapter-item expanded "><div><strong aria-hidden="true">17.</strong> Tracing</div></li></ol>            </div>
             <div id="sidebar-resize-handle" class="sidebar-resize-handle"></div>
         </nav>
 
@@ -143,33 +143,25 @@
 
                 <div id="content" class="content">
                     <main>
-                        <h1 id="josh-filter"><a class="header" href="#josh-filter">josh-filter</a></h1>
-<p>Command to rewrite history using <code>josh</code> filter specs.
-By default it will use <code>HEAD</code> as input and update <code>FILTERED_HEAD</code> with the filtered
-history, taking a filter specification as argument.
-(Note that input and output are swapped with <code>--reverse</code>.)</p>
-<h1 id="git-sync"><a class="header" href="#git-sync">git-sync</a></h1>
-<p>A utility to make working with server side rewritten commits easier.
-Those commits frequently get produced when making changes to <code>workspace.josh</code> files.</p>
-<p>The command is available <a href="https://raw.githubusercontent.com/josh-project/josh/master/scripts/git-sync">in the script
-directory</a>.
-It should be put downloaded and added to the <code>PATH</code>.
-It can then be used as a drop-in replacement for <code>git push</code>.
-It enables the server to <em>return</em> commits back to the client after a push. This is done by parsing
-the messages sent back by the server for announcements of rewritten commits and then fetching
-those to update the local references.
-In case of a normal git server that does not rewrite anything, <code>git sync</code> will do exactly the
-same as <code>git push</code>, also accepting the same arguments.</p>
+                        <h1 id="graphql-api"><a class="header" href="#graphql-api">GraphQL API</a></h1>
+<p>Josh implements a GraphQL API to query the content of repositories without a need to clone
+them via a git client.</p>
+<p>The API is exposed at:</p>
+<pre><code>http://hostname/~/graphql/name_of_repo.git
+</code></pre>
+<p>To explore the API and generated documentation, an interactive GraphQL shell can be found at:</p>
+<pre><code>http://hostname/~/graphiql/name_of_repo.git
+</code></pre>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                                                    <a rel="prev" href="../reference/workspace.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                                    <a rel="prev" href="../reference/cli.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <i class="fa fa-angle-left"></i>
                             </a>
                         
-                                                    <a rel="next" href="../reference/graphql.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                                    <a rel="next" href="../contributing/testing.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <i class="fa fa-angle-right"></i>
                             </a>
                         
@@ -179,11 +171,11 @@ same as <code>git push</code>, also accepting the same arguments.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                                    <a rel="prev" href="../reference/workspace.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                    <a rel="prev" href="../reference/cli.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <i class="fa fa-angle-left"></i>
                     </a>
                 
-                                    <a rel="next" href="../reference/graphql.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                    <a rel="next" href="../contributing/testing.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <i class="fa fa-angle-right"></i>
                     </a>
                             </nav>
