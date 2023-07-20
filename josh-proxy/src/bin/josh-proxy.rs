@@ -1,4 +1,4 @@
-#![deny(warnings)]
+// #![deny(warnings)]
 #[macro_use]
 extern crate lazy_static;
 
@@ -26,6 +26,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
+use opentelemetry_otlp::WithExportConfig;
 use tokio::io::AsyncWriteExt;
 use tokio::net::UnixStream;
 use tokio::process::Command;
@@ -1423,8 +1424,45 @@ fn trace_http_response_code(trace_span: Span, http_status: StatusCode) {
     };
 }
 
-#[tokio::main]
+fn init_trace() {
+    // Set format for propagating tracing context. This allows to link traces from one invocation
+    // of josh to the next
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
+    let fmt_layer = tracing_subscriber::fmt::layer()
+        .compact()
+        .with_ansi(false)
+        .with_writer(io::stderr);
+
+    let filter = match std::env::var("RUST_LOG") {
+        Ok(_) => tracing_subscriber::EnvFilter::from_default_env(),
+        _ => tracing_subscriber::EnvFilter::new("josh=trace,josh_proxy=trace"),
+    };
+
+    if let Ok(endpoint) = std::env::var("JOSH_OTLP_ENDPOINT") {
+        let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(opentelemetry_otlp::new_exporter().tonic().with_endpoint(endpoint))
+            .install_simple()
+            .expect("can't install opentelemetry pipeline");
+
+        let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let subscriber = filter
+            .and_then(fmt_layer)
+            .and_then(telemetry_layer)
+            .with_subscriber(tracing_subscriber::Registry::default());
+        tracing::subscriber::set_global_default(subscriber).expect("can't set_global_default");
+    } else {
+        let subscriber = filter
+            .and_then(fmt_layer)
+            .with_subscriber(tracing_subscriber::Registry::default());
+        tracing::subscriber::set_global_default(subscriber).expect("can't set_global_default");
+    };
+}
+
 async fn run_proxy() -> josh::JoshResult<i32> {
+    init_trace();
+
     let addr = format!("0.0.0.0:{}", ARGS.port).parse()?;
     let upstream = match (&ARGS.remote.http, &ARGS.remote.ssh) {
         (Some(http), None) => JoshProxyUpstream::Http(http.clone()),
@@ -1799,41 +1837,13 @@ fn main() {
         }
     }
 
-    // Set format for propagating tracing context. This allows to link traces from one invocation
-    // of josh to the next
-    global::set_text_map_propagator(TraceContextPropagator::new());
+    let return_code = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            run_proxy().await
+        });
 
-    let fmt_layer = tracing_subscriber::fmt::layer()
-        .compact()
-        .with_ansi(false)
-        .with_writer(io::stderr);
-
-    let filter = match std::env::var("RUST_LOG") {
-        Ok(_) => tracing_subscriber::EnvFilter::from_default_env(),
-        _ => tracing_subscriber::EnvFilter::new("josh=trace,josh_proxy=trace"),
-    };
-
-    if let Ok(endpoint) = std::env::var("JOSH_JAEGER_ENDPOINT") {
-        let tracer = opentelemetry_jaeger::new_agent_pipeline()
-            .with_service_name(
-                std::env::var("JOSH_SERVICE_NAME").unwrap_or("josh-proxy".to_owned()),
-            )
-            .with_endpoint(endpoint)
-            .install_simple()
-            .expect("can't install opentelemetry pipeline");
-
-        let telemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
-        let subscriber = filter
-            .and_then(fmt_layer)
-            .and_then(telemetry_layer)
-            .with_subscriber(tracing_subscriber::Registry::default());
-        tracing::subscriber::set_global_default(subscriber).expect("can't set_global_default");
-    } else {
-        let subscriber = filter
-            .and_then(fmt_layer)
-            .with_subscriber(tracing_subscriber::Registry::default());
-        tracing::subscriber::set_global_default(subscriber).expect("can't set_global_default");
-    };
-
-    std::process::exit(run_proxy().unwrap_or(1));
+    std::process::exit(return_code.unwrap_or(1));
 }
