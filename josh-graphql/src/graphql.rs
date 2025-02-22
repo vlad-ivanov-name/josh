@@ -6,6 +6,7 @@ use juniper::{EmptyMutation, EmptySubscription, FieldResult, graphql_object};
 pub struct Revision {
     filter: filter::Filter,
     commit_id: git2::Oid,
+    span: tracing::Span,
 }
 
 fn find_paths(
@@ -70,6 +71,8 @@ impl Revision {
         context: &Context,
         kind: git2::ObjectType,
     ) -> FieldResult<Option<Vec<Path>>> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_files_or_dirs", at = ?at, depth = ?depth, kind = ?kind);
+
         let transaction = context.transaction.lock()?;
         let commit = transaction.repo().find_commit(self.commit_id)?;
         let tree = filter::apply(&transaction, self.filter, commit.tree()?)?;
@@ -95,6 +98,8 @@ impl Revision {
     }
 
     fn hash(&self, context: &Context) -> FieldResult<String> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_hash", filter = ?self.filter, commit_id = ?self.commit_id);
+
         rs_tracing::trace_scoped!("hash");
         let transaction = context.transaction.lock()?;
         let commit = transaction.repo().find_commit(self.commit_id)?;
@@ -115,6 +120,8 @@ impl Revision {
     }
 
     fn summary(&self, context: &Context) -> FieldResult<String> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_summary", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let transaction = context.transaction.lock()?;
         let commit = transaction.repo().find_commit(self.commit_id)?;
         let filter_commit = transaction.repo().find_commit(filter::apply_to_commit(
@@ -126,6 +133,8 @@ impl Revision {
     }
 
     fn message(&self, context: &Context) -> FieldResult<String> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_message", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let transaction = context.transaction.lock()?;
         let commit = transaction.repo().find_commit(self.commit_id)?;
         let filter_commit = transaction.repo().find_commit(filter::apply_to_commit(
@@ -137,6 +146,8 @@ impl Revision {
     }
 
     fn date(&self, format: String, context: &Context) -> FieldResult<String> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_date", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let transaction = context.transaction.lock()?;
         let commit = transaction.repo().find_commit(self.commit_id)?;
         let filter_commit = transaction.repo().find_commit(filter::apply_to_commit(
@@ -159,6 +170,8 @@ impl Revision {
         original: Option<bool>,
         context: &Context,
     ) -> FieldResult<Option<Revision>> {
+        let span = tracing::info_span!(parent: &self.span, "rev_rev", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let commit_id = if let Some(true) = original {
             let transaction = context.transaction.lock()?;
             let commit = transaction.repo().find_commit(self.commit_id)?;
@@ -182,10 +195,13 @@ impl Revision {
         Ok(Some(Revision {
             filter: filter::parse(&filter.unwrap_or_else(|| ":/".to_string()))?,
             commit_id,
+            span,
         }))
     }
 
     fn parents(&self, context: &Context) -> FieldResult<Vec<Revision>> {
+        let span = tracing::info_span!(parent: &self.span, "rev_parents", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let transaction = context.transaction.lock()?;
         let commit = transaction.repo().find_commit(self.commit_id)?;
         let filter_commit = transaction.repo().find_commit(filter::apply_to_commit(
@@ -198,6 +214,7 @@ impl Revision {
             .parent_ids()
             .map(|id| Revision {
                 filter: self.filter,
+                span: span.clone(),
                 commit_id: history::find_original(
                     &transaction,
                     self.filter,
@@ -218,6 +235,8 @@ impl Revision {
         offset: Option<i32>,
         context: &Context,
     ) -> FieldResult<Vec<Revision>> {
+        let span = tracing::info_span!(parent: &self.span, "rev_history", filter = ?self.filter, commit_id = ?self.commit_id);
+
         rs_tracing::trace_scoped!("history");
         let limit = limit.unwrap_or(1) as usize;
         let offset = offset.unwrap_or(0) as usize;
@@ -269,6 +288,7 @@ impl Revision {
             .map(|id| Revision {
                 filter: self.filter,
                 commit_id: id,
+                span: span.clone(),
             })
             .collect())
     }
@@ -360,6 +380,8 @@ impl Revision {
     }
 
     fn file(&self, path: String, context: &Context) -> FieldResult<Option<Path>> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_file", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let transaction = context.transaction.lock()?;
         let path = std::path::Path::new(&path).to_owned();
         let tree = transaction.repo().find_commit(self.commit_id)?.tree()?;
@@ -379,6 +401,8 @@ impl Revision {
     }
 
     fn dir(&self, path: Option<String>, context: &Context) -> FieldResult<Option<Path>> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_dir", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let path = path.unwrap_or_default();
         let transaction = context.transaction.lock()?;
         let tree = transaction.repo().find_commit(self.commit_id)?.tree()?;
@@ -409,6 +433,8 @@ impl Revision {
     }
 
     fn warnings(&self, context: &Context) -> FieldResult<Option<Vec<Warning>>> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_warnings", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let transaction = context.transaction.lock()?;
         let commit = transaction.repo().find_commit(self.commit_id)?;
 
@@ -426,6 +452,8 @@ impl Revision {
         max_complexity: Option<i32>,
         context: &Context,
     ) -> FieldResult<Option<Vec<SearchResult>>> {
+        let _guard = tracing::info_span!(parent: &self.span, "rev_search", filter = ?self.filter, commit_id = ?self.commit_id);
+
         let max_complexity = max_complexity.unwrap_or(6) as usize;
         let transaction = context.transaction.lock()?;
         let ifilterobj = filter::parse(":SQUASH:INDEX")?;
@@ -691,6 +719,7 @@ impl Path {
     }
 
     fn rev(&self, filter: String) -> FieldResult<Revision> {
+        let span = tracing::info_span!("path_rev");
         let hm: std::collections::HashMap<String, String> =
             [("path".to_string(), self.path.to_string_lossy().to_string())]
                 .iter()
@@ -699,6 +728,7 @@ impl Path {
         Ok(Revision {
             filter: filter::parse(&strfmt::strfmt(&filter, &hm)?)?,
             commit_id: self.commit_id,
+            span,
         })
     }
 
@@ -818,6 +848,7 @@ impl Reference {
     }
 
     fn rev(&self, context: &Context, filter: Option<String>) -> FieldResult<Revision> {
+        let span = tracing::info_span!("ref_rev");
         let transaction_mirror = context.transaction_mirror.lock()?;
         let commit_id = transaction_mirror
             .repo()
@@ -828,6 +859,7 @@ impl Reference {
         Ok(Revision {
             filter: filter::parse(&filter.unwrap_or_else(|| ":/".to_string()))?,
             commit_id,
+            span,
         })
     }
 }
@@ -999,6 +1031,8 @@ impl Repository {
     }
 
     fn rev(&self, context: &Context, at: String, filter: Option<String>) -> FieldResult<Revision> {
+        let span = tracing::info_span!("rev", at = at, filter = ?filter);
+
         let rev = format!("{}{}", self.ns, at);
 
         let transaction_mirror = context.transaction_mirror.lock()?;
@@ -1022,6 +1056,7 @@ impl Repository {
         Ok(Revision {
             filter: filter::parse(&filter.unwrap_or_else(|| ":/".to_string()))?,
             commit_id,
+            span,
         })
     }
 }
@@ -1050,6 +1085,7 @@ pub fn commit_schema(commit_id: git2::Oid) -> CommitSchema {
         Revision {
             commit_id,
             filter: filter::nop(),
+            span: tracing::Span::current(),
         },
         EmptyMutation::new(),
         EmptySubscription::new(),
