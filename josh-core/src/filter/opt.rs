@@ -199,18 +199,32 @@ fn last_chain(rest: Filter, filter: Filter) -> (Filter, Filter) {
 
 fn prefix_sort(filters: &[Filter]) -> Vec<Filter> {
     let mut sorted = filters.to_owned();
-    sorted.sort_by(|a, b| {
-        let (src_a, src_b) = (src_path(*a), src_path(*b));
-        if src_a.starts_with(&src_b) || src_b.starts_with(&src_a) {
-            return std::cmp::Ordering::Equal;
-        }
-        let (dst_a, dst_b) = (dst_path(*a), dst_path(*b));
-        if dst_a.starts_with(&dst_b) || dst_b.starts_with(&dst_a) {
-            return std::cmp::Ordering::Equal;
-        }
+    let len = sorted.len();
 
-        (&src_a, &dst_a).partial_cmp(&(&src_b, &dst_b)).unwrap()
-    });
+    for i in 0..len {
+        for j in 0..len - i - 1 {
+            let (src_a, src_b) = (src_path(sorted[j]), src_path(sorted[j + 1]));
+            let (dst_a, dst_b) = (dst_path(sorted[j]), dst_path(sorted[j + 1]));
+
+            let should_swap = {
+                if src_a.starts_with(&src_b) || src_b.starts_with(&src_a) {
+                    false // Keep original order
+                } else if dst_a.starts_with(&dst_b) || dst_b.starts_with(&dst_a) {
+                    false // Keep original order
+                } else {
+                    match (&src_a, &dst_a).partial_cmp(&(&src_b, &dst_b)) {
+                        Some(std::cmp::Ordering::Greater) => true,
+                        _ => false,
+                    }
+                }
+            };
+
+            if should_swap {
+                sorted.swap(j, j + 1);
+            }
+        }
+    }
+
     sorted
 }
 
@@ -349,13 +363,13 @@ fn step(filter: Filter) -> Filter {
             } else if grouped.len() != 1 && grouped.len() != filters.len() {
                 Op::Compose(
                     grouped
-                        .drain(..)
+                        .into_iter()
                         .map(|x| to_filter(Op::Compose(x)))
                         .collect(),
                 )
             } else {
                 let mut filters = prefix_sort(&filters);
-                Op::Compose(filters.drain(..).map(step).collect())
+                Op::Compose(filters.into_iter().map(step).collect())
             }
         }
         Op::Chain(a, b) => match (to_op(a), to_op(b)) {
