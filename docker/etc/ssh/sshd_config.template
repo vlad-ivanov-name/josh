@@ -26,13 +26,7 @@ AcceptEnv GIT_PROTOCOL
 
 # fail2ban-like features
 
-PerSourceMaxStartups ${JOSH_SSH_MAX_STARTUPS}
-PerSourceNetBlockSize 32:128
-
-# Client management
-
-ClientAliveInterval 360
-ClientAliveCountMax 0
+MaxStartups ${JOSH_SSH_MAX_STARTUPS}
 
 # Authentication
 
