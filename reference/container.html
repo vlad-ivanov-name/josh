@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Command line tools - Just One Single History</title>
+        <title>Container configuration - Just One Single History</title>
 
 
         <!-- Custom HTML head -->
@@ -174,36 +174,225 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="josh-filter"><a class="header" href="#josh-filter">josh-filter</a></h1>
-<p>Command to rewrite history using <code>josh</code> filter specs.
-By default it will use <code>HEAD</code> as input and update <code>FILTERED_HEAD</code> with the filtered
-history, taking a filter specification as argument.
-(Note that input and output are swapped with <code>--reverse</code>.)</p>
-<p>It can be installed with the following Cargo command, assuming Rust is installed:</p>
-<pre><code class="language-shell">cargo install josh-cli --git https://github.com/josh-project/josh.git
+                        <h1 id="container-configuration"><a class="header" href="#container-configuration">Container configuration</a></h1>
+<h2 id="container-options"><a class="header" href="#container-options">Container options</a></h2>
+<table>
+    
+<tr>
+        <th>
+            Variable
+        </th>
+        <th>
+            Meaning
+        </th>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>JOSH_REMOTE</code>
+        </td>
+        <td>
+            HTTP remote, including protocol.
+            Example: <code>https://github.com</code>
+        </td>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>JOSH_REMOTE_SSH</code>
+        </td>
+        <td>
+            SSH remote, including protocol.
+            Example: <code>ssh://git@github.com</code>
+        </td>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>JOSH_HTTP_PORT</code>
+        </td>
+        <td>
+            HTTP port to listen on.
+            Default: 8000
+        </td>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>JOSH_SSH_PORT</code>
+        </td>
+        <td>
+            SSH port to listen on.
+            Default: 8022
+        </td>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>JOSH_SSH_TIMEOUT</code>
+        </td>
+        <td>
+            Timeout, in seconds, for a single request when serving repos over SSH.
+            This time should cover fetch from upstream repo, filtering, and serving
+            repo to client. Default: 300
+        </td>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>JOSH_EXTRA_OPTS</code>
+        </td>
+        <td>
+            Extra options passed directly to
+            <code>josh-proxy</code> process
+        </td>
+    </tr>
+
+</table>
+
+<h2 id="container-volumes"><a class="header" href="#container-volumes">Container volumes</a></h2>
+<table>
+    
+<tr>
+        <th>
+            Volume
+        </th>
+        <th>
+            Purpose
+        </th>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>/data/git</code>
+        </td>
+        <td>
+            Git cache volume. If this volume is not
+            mounted, the cache will be lost every time
+            the container is shut down.
+        </td>
+    </tr>
+
+    
+<tr>
+        <td>
+            <code>/data/keys</code>
+        </td>
+        <td>
+            SSH server keys. If this volume is not
+            mounted, a new key will be generated on
+            each container startup
+        </td>
+    </tr>
+
+</table>
+
+<h2 id="container-services"><a class="header" href="#container-services">Container services</a></h2>
+<p>The Josh container uses <a href="https://github.com/just-containers/s6-overlay">s6-overlay</a> as a process supervisor
+to manage multiple services:</p>
+<h3 id="long-running-services"><a class="header" href="#long-running-services">Long-running services</a></h3>
+<ul>
+<li>
+<p><strong>josh-proxy</strong> - The main HTTP proxy service that handles git requests, applies filters, and communicates
+with upstream repositories.</p>
+</li>
+<li>
+<p><strong>sshd</strong> - OpenSSH server that provides SSH access to the proxy.</p>
+</li>
+</ul>
+<h3 id="one-shot-initialization-services"><a class="header" href="#one-shot-initialization-services">One-shot initialization services</a></h3>
+<p>These services run once during container startup to prepare the environment:</p>
+<ul>
+<li>
+<p><strong>josh-generate-keys</strong> - Generates SSH server keys at <code>/data/keys/.ssh/id_ed25519</code> if they don’t already exist.
+Therefore, SSH server keys are persisted across container restarts when the volume is mounted.</p>
+</li>
+<li>
+<p><strong>sshd-generate-config</strong> - Generates the sshd configuration file from a template,
+applying configuration environment variables.</p>
+</li>
+</ul>
+<h2 id="ssh-access"><a class="header" href="#ssh-access">SSH access</a></h2>
+<p>Josh supports SSH access.
+To use SSH, you need to add the following lines to your <code>~/.ssh/config</code>:</p>
+<pre><code>Host your-josh-instance.com
+    ForwardAgent yes
+    PreferredAuthentications publickey
 </code></pre>
-<h1 id="git-sync"><a class="header" href="#git-sync">git-sync</a></h1>
-<p>A utility to make working with server side rewritten commits easier.
-Those commits frequently get produced when making changes to <code>workspace.josh</code> files.</p>
-<p>The command is available <a href="https://raw.githubusercontent.com/josh-project/josh/master/scripts/git-sync">in the script
-directory</a>.
-It should be put downloaded and added to the <code>PATH</code>.
-It can then be used as a drop-in replacement for <code>git push</code>.
-It enables the server to <em>return</em> commits back to the client after a push. This is done by parsing
-the messages sent back by the server for announcements of rewritten commits and then fetching
-those to update the local references.
-In case of a normal git server that does not rewrite anything, <code>git sync</code> will do exactly the
-same as <code>git push</code>, also accepting the same arguments.</p>
+<p>Alternatively, you can pass those options via <code>GIT_SSH_COMMAND</code>:</p>
+<pre><code>GIT_SSH_COMMAND="ssh -o PreferredAuthentications=publickey -o ForwardAgent=yes" git clone ssh://git@your-josh-instance.internal/...
+</code></pre>
+<p>In other words, you need to ensure SSH agent forwarding is enabled.</p>
+<h3 id="how-ssh-access-works"><a class="header" href="#how-ssh-access-works">How SSH access works</a></h3>
+<pre class="mermaid">sequenceDiagram
+    participant User as Git CLI&lt;br/&gt;(User Machine)
+    participant Agent as SSH Agent&lt;br/&gt;(User Machine)
+    participant SSHD as sshd&lt;br/&gt;(Josh Container)
+    participant Shell as josh-ssh-shell&lt;br/&gt;(Josh Container)
+    participant Proxy as josh-proxy&lt;br/&gt;(Josh Container)
+    participant Upstream as Upstream Repo&lt;br/&gt;(e.g., GitHub)
+
+    User-&gt;&gt;Agent: Load SSH keys
+    Note over User,Agent: User's SSH keys remain&lt;br/&gt;on local machine
+
+    User-&gt;&gt;SSHD: git clone ssh://git@josh:8022/repo.git:/filter.git
+    Note over User,SSHD: SSH connection with&lt;br/&gt;ForwardAgent=yes
+
+    SSHD-&gt;&gt;Agent: Forward SSH_AUTH_SOCK
+    Note over SSHD,Agent: Agent socket forwarded&lt;br/&gt;into container
+
+    SSHD-&gt;&gt;Shell: Execute git-upload-pack
+    Note over Shell: Validates SSH_AUTH_SOCK&lt;br/&gt;is a valid socket
+
+    Shell-&gt;&gt;Proxy: HTTP POST /serve_namespace
+    Note over Shell,Proxy: Sends command, repo path,&lt;br/&gt;and SSH_AUTH_SOCK path
+
+    Proxy-&gt;&gt;Upstream: git fetch (via SSH)
+    Note over Proxy,Upstream: Uses forwarded SSH_AUTH_SOCK&lt;br/&gt;for authentication
+
+    Upstream-&gt;&gt;Agent: Authenticate via SSH_AUTH_SOCK
+    Agent--&gt;&gt;Upstream: Sign challenge with user's key
+
+    Upstream--&gt;&gt;Proxy: Repository objects
+
+    Proxy-&gt;&gt;Proxy: Apply josh filter
+    Note over Proxy: Transform repository&lt;br/&gt;based on filter spec
+
+    Proxy-&gt;&gt;Shell: Serve filtered repo via Unix sockets
+    Shell-&gt;&gt;SSHD: Proxy git protocol
+    SSHD-&gt;&gt;User: Filtered repository
+
+    Note over User,Upstream: User's SSH keys never leave&lt;br/&gt;their machine. Authentication&lt;br/&gt;is delegated through the&lt;br/&gt;forwarded agent socket.
+</pre>
+
+<ol>
+<li>
+<p><strong>SSH Agent Forwarding</strong>: The user’s SSH agent socket is forwarded into the container, allowing josh-proxy to authenticate to upstream repositories without accessing the user’s private keys directly.</p>
+</li>
+<li>
+<p><strong>Two-stage architecture</strong>: <code>sshd</code> handles the SSH connection and launches <code>josh-ssh-shell</code>, which then communicates with <code>josh-proxy</code> via HTTP.</p>
+</li>
+<li>
+<p><strong>Security</strong>: Private SSH keys never enter the container. All authentication is performed by delegating to the user’s local SSH agent through the forwarded socket.</p>
+</li>
+</ol>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../reference/container.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../reference/workspace.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../reference/graphql.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../reference/cli.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -213,11 +402,11 @@ same as <code>git push</code>, also accepting the same arguments.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../reference/container.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../reference/workspace.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../reference/graphql.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../reference/cli.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
